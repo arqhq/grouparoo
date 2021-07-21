@@ -8,6 +8,7 @@ import { OptionHelper } from "../optionHelper";
 import { MappingHelper } from "../mappingHelper";
 import { log, utils, api } from "actionhero";
 import { LoggedModel } from "../../classes/loggedModel";
+import { ProfilePropertyType } from "./profile";
 
 export namespace SourceOps {
   /**
@@ -240,7 +241,11 @@ export namespace SourceOps {
   /**
    * Import all profile properties from a Source for a Profile
    */
-  export async function _import(source: Source, profile: Profile) {
+  export async function _import(
+    source: Source,
+    profile: Profile,
+    newPendingProperties?: ProfilePropertyType
+  ) {
     const hash = {};
     const rules = await source.$get("properties", {
       where: { state: "ready" },

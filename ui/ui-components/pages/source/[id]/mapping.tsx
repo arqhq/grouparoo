@@ -1,7 +1,7 @@
 import { useApi } from "../../../hooks/useApi";
 import SourceTabs from "../../../components/tabs/source";
 import Head from "next/head";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Row, Col, Table, Form, Button } from "react-bootstrap";
 import { createSchedule } from "../../../components/schedule/add";
 import LoadingButton from "../../../components/loadingButton";
@@ -27,7 +27,9 @@ export default function Page(props) {
       ? Object.values(props.source.mapping)[0]
       : ""
   );
-  const [properties, setProperties] = useState(props.properties);
+  const [properties, setProperties] = useState<
+    Actions.PropertiesList["properties"]
+  >(props.properties);
   const [preview, setPreview] = useState(props.preview || []);
   const [propertyExamples, setPropertyExamples] = useState(
     props.propertyExamples
@@ -35,6 +37,7 @@ export default function Page(props) {
   const [newProperty, setNewProperty] = useState({
     key: "",
     type: "",
+    unique: false,
   });
   const [source, setSource] = useState(props.source);
 
@@ -232,6 +235,7 @@ export default function Page(props) {
                         <tr>
                           <th></th>
                           <th>Property</th>
+                          <th>Source</th>
                           <th>Examples</th>
                         </tr>
                       </thead>
@@ -254,6 +258,9 @@ export default function Page(props) {
                             </td>
                             <td>
                               <strong>{rule.key}</strong>
+                            </td>
+                            <td>
+                              <strong>{rule.sourceId}</strong>
                             </td>
                             <td>
                               {propertyExamples[rule.id]
@@ -325,6 +332,21 @@ export default function Page(props) {
                         <option key={`type-${type}`}>{type}</option>
                       ))}
                     </Form.Control>
+                    <Form.Label>Unique?</Form.Label>
+                    <Form.Check
+                      as="input"
+                      type="checkbox"
+                      required
+                      defaultChecked={true}
+                      disabled={loading}
+                      onChange={(e) => {
+                        setNewProperty(
+                          Object.assign({}, newProperty, {
+                            unique: e.target.checked,
+                          })
+                        );
+                      }}
+                    ></Form.Check>
                   </Form.Group>
                   <LoadingButton
                     size="sm"
@@ -352,7 +374,7 @@ Page.getInitialProps = async (ctx) => {
   const { properties, examples: propertyExamples } = await execApi(
     "get",
     `/properties`,
-    { includeExamples: true, state: "ready", unique: true }
+    { includeExamples: true, state: "ready" }
   );
   const { types } = await execApi("get", `/propertyOptions`);
   const { total: scheduleCount } = await execApi("get", `/schedules`);

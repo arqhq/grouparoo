@@ -14,6 +14,7 @@ import { ProfilePropertyOps } from "./profileProperty";
 import { CLS } from "../../modules/cls";
 import { GroupRule } from "../../models/GroupRule";
 import { Import } from "../../models/Import";
+import { Mapping } from "../../models/Mapping";
 
 export interface ProfilePropertyType {
   [key: string]: {
@@ -458,20 +459,55 @@ export namespace ProfileOps {
     }
 
     try {
-      let hash = {};
-      const sources = await Source.findAll({ where: { state: "ready" } });
       const excludeSourceIds = [];
-      await Promise.all(
-        sources.map((source) =>
-          source.import(profile).then(({ canImport, properties }) => {
-            hash = Object.assign(hash, properties);
-            if (!canImport) excludeSourceIds.push(source.id);
-          })
-        )
-      );
+      const sources = await Source.findAll({
+        where: { state: "ready" },
+        include: [Mapping, Property],
+      });
+
+      type SourceWithMetadata = {
+        id: string;
+        dependsOn: string[];
+        provides: string[];
+      };
+
+      const sourceProvisions: SourceWithMetadata[] = sources.map((source) => {
+        return {
+          id: source.id,
+          provides: source.properties.map((p) => p.id),
+          dependsOn: source.mappings.map((m) => m.propertyId),
+        };
+      });
+
+      const sortSources = (
+        sourceA: SourceWithMetadata,
+        sourceB: SourceWithMetadata
+      ) => {
+        if (sourceA.dependsOn.find((v) => sourceB.provides.includes(v))) {
+          return 1;
+        } else if (
+          sourceB.dependsOn.find((v) => sourceA.provides.includes(v))
+        ) {
+          return -1;
+        } else {
+          return 0;
+        }
+      };
+
+      const sortedSources = sourceProvisions
+        .sort(sortSources)
+        .map(({ id }) => sources.find((s) => s.id === id));
+
+      for (const source of sortedSources) {
+        const { canImport, properties } = await source.import(profile);
+        console.log(source.id, { properties });
+        await addOrUpdateProperties([profile], [properties], false); // NOTE: We needed to save the properties as we loaded them so they could be used by the next source
+
+        if (!canImport) excludeSourceIds.push(source.id);
+      }
 
       if (toSave) {
-        await addOrUpdateProperties([profile], [hash], false);
+        // await addOrUpdateProperties([profile], [hash], false);
         await removePendingProperties(profile, excludeSourceIds);
         await buildNullProperties([profile]);
 
